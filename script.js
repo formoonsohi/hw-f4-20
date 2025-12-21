@@ -11,10 +11,11 @@ const BASE_URL = "https://pixabay.com/api/";
 const API_KEY = "53713087-2b0a12a22f0eae895a449346a";
 const picturesContainer = document.querySelector(".gallery");
 const PER_PAGE = 12;
+let simpleLightbox;
 
 const form = document.querySelector("#search-form");
 
-const page = 1;
+let page = 1;
 let query = "";
 
 const fetchImages = async () => {
@@ -30,26 +31,28 @@ const createPicturesMarkup = (pictures) => {
   const markup = pictures
     .map((img) => {
       return `<div class="photo-card">
-      <a href="${img.largeImagesURL}"><img src="${img.webformatURL}" alt="" /></a>
-      <div class="stats">
-        <p class="stats-item">
-          <i class="material-icons">thumb_up</i>
-          ${img.likes}
-        </p>
-        <p class="stats-item">
-          <i class="material-icons">visibility</i>
-          ${img.views}
-        </p>
-        <p class="stats-item">
-          <i class="material-icons">comment</i>
-          ${img.comments}
-        </p>
-        <p class="stats-item">
-          <i class="material-icons">cloud_download</i>
-          ${img.downloads}
-        </p>
-      </div>
-    </div>`;
+        <a class="gallery-link" href=${img.largeImageURL}>
+          <img src=${img.webformatURL} alt="" class="gallery-image"/>
+        </a>
+        <div class="stats">
+          <p class="stats-item">
+            <i class="material-icons">thumb_up</i>
+            ${img.likes}
+          </p>
+          <p class="stats-item">
+            <i class="material-icons">visibility</i>
+            ${img.views}
+          </p>
+          <p class="stats-item">
+            <i class="material-icons">comment</i>
+            ${img.comments}
+          </p>
+          <p class="stats-item">
+            <i class="material-icons">cloud_download</i>
+            ${img.downloads}
+          </p>
+        </div>
+      </div>`;
     })
     .join("");
   picturesContainer.insertAdjacentHTML("beforeend", markup);
@@ -68,9 +71,19 @@ async function onSubmitForm(e) {
     });
     return;
   }
+
+  page = 1;
+  picturesContainer.innerHTML = "";
+  observer.disconnect();
+
   try {
     const data = await fetchImages();
     createPicturesMarkup(data.hits);
+
+    simpleLightbox = new SimpleLightbox(".gallery a", {});
+
+    const picturesTarget = document.querySelector(".photo-card:last-child");
+    observer.observe(picturesTarget);
   } catch (error) {
     iziToast.error({
       title: "Error",
@@ -81,3 +94,36 @@ async function onSubmitForm(e) {
 }
 
 form.addEventListener("submit", onSubmitForm);
+
+const options = {
+  threshold: 1.0,
+};
+
+const callback = (entries, observer) => {
+  entries.forEach((entry) => {
+    console.log(entry.isIntersecting);
+    if (entry.isIntersecting) {
+      observer.unobserve(entry.target);
+      page += 1;
+      loadingMorePictures();
+    }
+  });
+};
+
+async function loadingMorePictures() {
+  try {
+    const data = await fetchImages();
+    createPicturesMarkup(data.hits);
+    const picturesTarget = document.querySelector(".photo-card:last-child");
+    observer.observe(picturesTarget);
+    simpleLightbox.refresh();
+  } catch (error) {
+    iziToast.error({
+      title: "Error",
+      message: error.message,
+      position: "topRight",
+    });
+  }
+}
+
+const observer = new IntersectionObserver(callback, options);
